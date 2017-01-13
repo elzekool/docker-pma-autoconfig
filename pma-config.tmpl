@@ -1,0 +1,49 @@
+{{ $currentContainer := where $ "ID" .Docker.CurrentContainerID | first }}
+{{ $currentContainerNetworks := groupByKeys $currentContainer.Networks ".Name"}}
+
+<?php
+require('/etc/phpmyadmin/config.secret.inc.php');
+
+$i = 1;
+{{range $container := .}}
+    {{ $containerNetworks := groupByKeys $container.Networks ".Name"}}
+    {{if and (intersect $containerNetworks $currentContainerNetworks) (ne $currentContainer.ID $container.ID) ($container.Env.PMA_USER) ($container.Env.PMA_USER)}}
+    
+        $cfg['Servers'][$i]['host'] = "{{ $container.Name }}";
+        $cfg['Servers'][$i]['connect_type'] = 'tcp';
+        $cfg['Servers'][$i]['compress'] = false;
+        $cfg['Servers'][$i]['AllowNoPassword'] = true;
+        $cfg['Servers'][$i]['auth_type'] = 'config';
+        $cfg['Servers'][$i]['user'] = '{{ $container.Env.PMA_USER }}';
+        $cfg['Servers'][$i]['password'] = '{{ $container.Env.PMA_PASS }}';
+        
+        {{if $container.Env.PMA_VERBOSE}}
+            $cfg['Servers'][$i]['verbose'] = '{{ $container.Env.PMA_VERBOSE }}';
+        {{end}}
+
+        {{if $container.Env.PMA_ONLYDB}}
+            $cfg['Servers'][$i]['only_db'] = explode('|', '{{ $container.Env.PMA_ONLYDB }}');
+        {{end}}
+        
+        $i++;
+        
+    {{end}}
+{{end}}
+
+if ($i == 1) {
+    die("No MYSQL servers found");
+} else if ($i > 2) {
+    $cfg['ServerDefault'] = 0;
+}
+
+/* Uploads setup */
+$cfg['UploadDir'] = '';
+$cfg['SaveDir'] = '';
+
+$cfg['FirstLevelNavigationItems'] = 250;
+$cfg['MaxNavigationItems'] = 500;
+
+/* Include User Defined Settings Hook */
+if (file_exists('/etc/phpmyadmin/config.user.inc.php')) {
+    include('/etc/phpmyadmin/config.user.inc.php');
+}
